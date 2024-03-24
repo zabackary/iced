@@ -134,6 +134,7 @@ impl shader::Primitive for Primitive {
         device: &wgpu::Device,
         queue: &wgpu::Queue,
         _bounds: Rectangle,
+        _target: &wgpu::TextureView,
         target_size: Size<u32>,
         _scale_factor: f32,
         storage: &mut shader::Storage,

@@ -41,6 +41,7 @@ pub trait Primitive: Debug + Send + Sync + 'static {
         device: &wgpu::Device,
         queue: &wgpu::Queue,
         bounds: Rectangle,
+        target: &wgpu::TextureView,
         target_size: Size<u32>,
         scale_factor: f32,
         storage: &mut Storage,
