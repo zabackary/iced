@@ -4,16 +4,13 @@ use iced::mouse;
 use iced::widget::canvas::{
     self, stroke, Cache, Canvas, Geometry, Path, Stroke,
 };
-use iced::{
-    Antialiasing, Element, Length, Point, Rectangle, Renderer, Subscription,
-    Theme,
-};
+use iced::{Element, Length, Point, Rectangle, Renderer, Subscription, Theme};
 
 pub fn main() -> iced::Result {
     iced::program("Arc - Iced", Arc::update, Arc::view)
         .subscription(Arc::subscription)
         .theme(|_| Theme::Dark)
-        .antialiasing(Antialiasing::Auto)
+        .antialiasing(true)
         .run()
 }
 

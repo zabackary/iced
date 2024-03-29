@@ -9,9 +9,7 @@ use iced::time;
 use iced::widget::{
     button, checkbox, column, container, pick_list, row, slider, text,
 };
-use iced::{
-    Alignment, Antialiasing, Command, Element, Length, Subscription, Theme,
-};
+use iced::{Alignment, Command, Element, Length, Subscription, Theme};
 use std::time::Duration;
 
 pub fn main() -> iced::Result {
@@ -20,7 +18,7 @@ pub fn main() -> iced::Result {
     iced::program("Game of Life - Iced", GameOfLife::update, GameOfLife::view)
         .subscription(GameOfLife::subscription)
         .theme(|_| Theme::Dark)
-        .antialiasing(Antialiasing::Auto)
+        .antialiasing(true)
         .centered()
         .run()
 }

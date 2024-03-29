@@ -173,7 +173,7 @@ impl Pipeline {
         let msaa = match antialiasing {
             Antialiasing::Disabled => None,
             Antialiasing::MSAA(msaa) => Some(msaa),
-            Antialiasing::Auto => {
+            Antialiasing::Automatic => {
                 if target.scale_factor > 2.0 {
                     None
                 } else if cfg!(target_os = "macos")

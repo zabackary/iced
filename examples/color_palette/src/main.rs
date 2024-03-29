@@ -3,8 +3,8 @@ use iced::mouse;
 use iced::widget::canvas::{self, Canvas, Frame, Geometry, Path};
 use iced::widget::{column, row, text, Slider};
 use iced::{
-    Antialiasing, Color, Element, Font, Length, Pixels, Point, Rectangle,
-    Renderer, Size, Vector,
+    Color, Element, Font, Length, Pixels, Point, Rectangle, Renderer, Size,
+    Vector,
 };
 use palette::{convert::FromColor, rgb::Rgb, Darken, Hsl, Lighten, ShiftHue};
 use std::marker::PhantomData;
@@ -18,7 +18,7 @@ pub fn main() -> iced::Result {
     )
     .theme(ColorPalette::theme)
     .default_font(Font::MONOSPACE)
-    .antialiasing(Antialiasing::Auto)
+    .antialiasing(true)
     .run()
 }
 

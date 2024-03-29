@@ -2,9 +2,7 @@ use iced::mouse;
 use iced::widget::canvas::event::{self, Event};
 use iced::widget::canvas::{self, Canvas, Geometry};
 use iced::widget::{column, row, slider, text};
-use iced::{
-    Antialiasing, Color, Length, Point, Rectangle, Renderer, Size, Theme,
-};
+use iced::{Color, Length, Point, Rectangle, Renderer, Size, Theme};
 
 use rand::Rng;
 use std::fmt::Debug;
@@ -15,7 +13,7 @@ fn main() -> iced::Result {
         SierpinskiEmulator::update,
         SierpinskiEmulator::view,
     )
-    .antialiasing(Antialiasing::Auto)
+    .antialiasing(true)
     .run()
 }
 

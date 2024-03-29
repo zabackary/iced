@@ -13,9 +13,19 @@ pub enum Antialiasing {
     /// Backends will choose an antialiasing strategy based on
     /// the pixel density of the target display; potentially
     /// disabling antialiasing altogether if deemed unnecessary.
-    Auto,
+    Automatic,
     /// Multisample antialiasing.
     MSAA(MSAA),
+}
+
+impl From<bool> for Antialiasing {
+    fn from(enable: bool) -> Self {
+        if enable {
+            Self::Automatic
+        } else {
+            Self::Disabled
+        }
+    }
 }
 
 /// A multisample antialiasing strategy.

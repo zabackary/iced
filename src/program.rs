@@ -263,10 +263,10 @@ impl<P: Definition> Program<P> {
     }
 
     /// Sets the [`Settings::antialiasing`] of the [`Program`].
-    pub fn antialiasing(self, antialiasing: Antialiasing) -> Self {
+    pub fn antialiasing(self, antialiasing: impl Into<Antialiasing>) -> Self {
         Self {
             settings: Settings {
-                antialiasing,
+                antialiasing: antialiasing.into(),
                 ..self.settings
             },
             ..self
