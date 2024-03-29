@@ -299,8 +299,8 @@ where
         }
     }
 
-    fn fetch_information(&self) -> compositor::Information {
-        delegate!(self, compositor, compositor.fetch_information())
+    fn information(&self) -> compositor::Information {
+        delegate!(self, compositor, compositor.information())
     }
 
     fn present<T: AsRef<str>>(

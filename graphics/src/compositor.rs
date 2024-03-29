@@ -58,7 +58,7 @@ pub trait Compositor: Sized {
     );
 
     /// Returns [`Information`] used by this [`Compositor`].
-    fn fetch_information(&self) -> Information;
+    fn information(&self) -> Information;
 
     /// Presents the [`Renderer`] primitives to the next frame of the given [`Surface`].
     ///
@@ -168,7 +168,7 @@ impl Compositor for () {
     ) {
     }
 
-    fn fetch_information(&self) -> Information {
+    fn information(&self) -> Information {
         Information {
             adapter: String::from("Null Renderer"),
             backend: String::from("Null"),

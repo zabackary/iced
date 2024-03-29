@@ -1139,7 +1139,7 @@ fn run_command<A, C, E>(
                 system::Action::QueryInformation(_tag) => {
                     #[cfg(feature = "system")]
                     {
-                        let graphics_info = compositor.fetch_information();
+                        let graphics_info = compositor.information();
                         let proxy = proxy.clone();
 
                         let _ = std::thread::spawn(move || {
