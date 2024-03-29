@@ -2,7 +2,7 @@
 //! surfaces.
 use crate::core::Color;
 use crate::futures::{MaybeSend, MaybeSync};
-use crate::{Error, Settings, Viewport};
+use crate::{Error, Settings, Target};
 
 use raw_window_handle::{HasDisplayHandle, HasWindowHandle};
 use std::future::Future;
@@ -68,7 +68,7 @@ pub trait Compositor: Sized {
         &mut self,
         renderer: &mut Self::Renderer,
         surface: &mut Self::Surface,
-        viewport: &Viewport,
+        target: &Target,
         background_color: Color,
         overlay: &[T],
     ) -> Result<(), SurfaceError>;
@@ -81,7 +81,7 @@ pub trait Compositor: Sized {
         &mut self,
         renderer: &mut Self::Renderer,
         surface: &mut Self::Surface,
-        viewport: &Viewport,
+        target: &Target,
         background_color: Color,
         overlay: &[T],
     ) -> Vec<u8>;
@@ -179,7 +179,7 @@ impl Compositor for () {
         &mut self,
         _renderer: &mut Self::Renderer,
         _surface: &mut Self::Surface,
-        _viewport: &Viewport,
+        _target: &Target,
         _background_color: Color,
         _overlay: &[T],
     ) -> Result<(), SurfaceError> {
@@ -190,7 +190,7 @@ impl Compositor for () {
         &mut self,
         _renderer: &mut Self::Renderer,
         _surface: &mut Self::Surface,
-        _viewport: &Viewport,
+        _target: &Target,
         _background_color: Color,
         _overlay: &[T],
     ) -> Vec<u8> {

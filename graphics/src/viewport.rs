@@ -1,7 +1,7 @@
 use crate::core::{Size, Transformation};
 
-/// A viewing region for displaying computer graphics.
-#[derive(Debug, Clone)]
+/// A drawable region for displaying computer graphics.
+#[derive(Debug, Clone, PartialEq)]
 pub struct Viewport {
     physical_size: Size<u32>,
     logical_size: Size<f32>,
@@ -52,5 +52,11 @@ impl Viewport {
     /// Returns the projection transformation of the [`Viewport`].
     pub fn projection(&self) -> Transformation {
         self.projection
+    }
+
+    /// Returns the projection transformation of the [`Viewport`], scaled
+    /// by the [`Viewport::scale_factor`].
+    pub fn scaled_projection(&self) -> Transformation {
+        self.projection * Transformation::scale(self.scale_factor as f32)
     }
 }

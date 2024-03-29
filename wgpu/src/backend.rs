@@ -1,14 +1,14 @@
-use crate::core::{Color, Size, Transformation};
+use crate::core::{Color, Size};
 use crate::graphics::backend;
 use crate::graphics::color;
-use crate::graphics::Viewport;
+use crate::graphics::{Antialiasing, Target};
 use crate::primitive::pipeline;
 use crate::primitive::{self, Primitive};
 use crate::quad;
 use crate::text;
 use crate::triangle;
 use crate::window;
-use crate::{Layer, Settings};
+use crate::Layer;
 
 #[cfg(feature = "tracing")]
 use tracing::info_span;
@@ -36,20 +36,18 @@ pub struct Backend {
 impl Backend {
     /// Creates a new [`Backend`].
     pub fn new(
-        _adapter: &wgpu::Adapter,
+        adapter: &wgpu::Adapter,
         device: &wgpu::Device,
         queue: &wgpu::Queue,
-        settings: Settings,
         format: wgpu::TextureFormat,
     ) -> Self {
         let text_pipeline = text::Pipeline::new(device, queue, format);
         let quad_pipeline = quad::Pipeline::new(device, format);
-        let triangle_pipeline =
-            triangle::Pipeline::new(device, format, settings.antialiasing);
+        let triangle_pipeline = triangle::Pipeline::new(adapter, format);
 
         #[cfg(any(feature = "image", feature = "svg"))]
         let image_pipeline = {
-            let backend = _adapter.get_info().backend;
+            let backend = adapter.get_info().backend;
 
             image::Pipeline::new(device, format, backend)
         };
@@ -82,22 +80,19 @@ impl Backend {
         clear_color: Option<Color>,
         format: wgpu::TextureFormat,
         frame: &wgpu::TextureView,
+        antialiasing: Antialiasing,
+        target: &Target,
         primitives: &[Primitive],
-        viewport: &Viewport,
         overlay_text: &[T],
     ) {
         log::debug!("Drawing");
         #[cfg(feature = "tracing")]
         let _ = info_span!("Wgpu::Backend", "PRESENT").entered();
 
-        let target_size = viewport.physical_size();
-        let scale_factor = viewport.scale_factor() as f32;
-        let transformation = viewport.projection();
-
-        let mut layers = Layer::generate(primitives, viewport);
+        let mut layers = Layer::generate(primitives, &target.viewport);
 
         if !overlay_text.is_empty() {
-            layers.push(Layer::overlay(overlay_text, viewport));
+            layers.push(Layer::overlay(overlay_text, &target.viewport));
         }
 
         self.prepare(
@@ -105,23 +100,14 @@ impl Backend {
             queue,
             format,
             encoder,
-            scale_factor,
-            target_size,
-            transformation,
+            antialiasing,
+            target,
             &layers,
         );
 
         self.staging_belt.finish();
 
-        self.render(
-            device,
-            encoder,
-            frame,
-            clear_color,
-            scale_factor,
-            target_size,
-            &layers,
-        );
+        self.render(device, encoder, frame, clear_color, target, &layers);
 
         self.quad_pipeline.end_frame();
         self.text_pipeline.end_frame();
@@ -145,11 +131,15 @@ impl Backend {
         queue: &wgpu::Queue,
         format: wgpu::TextureFormat,
         encoder: &mut wgpu::CommandEncoder,
-        scale_factor: f32,
-        target_size: Size<u32>,
-        transformation: Transformation,
+        antialiasing: Antialiasing,
+        target: &Target,
         layers: &[Layer<'_>],
     ) {
+        let target_size = target.viewport.physical_size();
+        let scale_factor = target.viewport.scale_factor() as f32;
+        let projection = target.viewport.projection();
+        let _scaled_projection = target.viewport.scaled_projection();
+
         for layer in layers {
             let bounds = (layer.bounds * scale_factor).snap();
 
@@ -163,36 +153,31 @@ impl Backend {
                     encoder,
                     &mut self.staging_belt,
                     &layer.quads,
-                    transformation,
+                    projection,
                     scale_factor,
                 );
             }
 
             if !layer.meshes.is_empty() {
-                let scaled =
-                    transformation * Transformation::scale(scale_factor);
-
                 self.triangle_pipeline.prepare(
                     device,
                     encoder,
                     &mut self.staging_belt,
+                    antialiasing,
+                    target,
                     &layer.meshes,
-                    scaled,
                 );
             }
 
             #[cfg(any(feature = "image", feature = "svg"))]
             {
                 if !layer.images.is_empty() {
-                    let scaled =
-                        transformation * Transformation::scale(scale_factor);
-
                     self.image_pipeline.prepare(
                         device,
                         encoder,
                         &mut self.staging_belt,
                         &layer.images,
-                        scaled,
+                        _scaled_projection,
                         scale_factor,
                     );
                 }
@@ -230,10 +215,9 @@ impl Backend {
         &mut self,
         device: &wgpu::Device,
         encoder: &mut wgpu::CommandEncoder,
-        target: &wgpu::TextureView,
+        frame: &wgpu::TextureView,
         clear_color: Option<Color>,
-        scale_factor: f32,
-        target_size: Size<u32>,
+        target: &Target,
         layers: &[Layer<'_>],
     ) {
         use std::mem::ManuallyDrop;
@@ -248,7 +232,7 @@ impl Backend {
             &wgpu::RenderPassDescriptor {
                 label: Some("iced_wgpu render pass"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: target,
+                    view: frame,
                     resolve_target: None,
                     ops: wgpu::Operations {
                         load: match clear_color {
@@ -274,6 +258,9 @@ impl Backend {
             },
         ));
 
+        let target_size = target.viewport.physical_size();
+        let scale_factor = target.viewport.scale_factor() as f32;
+
         for layer in layers {
             let bounds = (layer.bounds * scale_factor).snap();
 
@@ -298,11 +285,10 @@ impl Backend {
                 self.triangle_pipeline.render(
                     device,
                     encoder,
+                    frame,
                     target,
                     triangle_layer,
-                    target_size,
                     &layer.meshes,
-                    scale_factor,
                 );
 
                 triangle_layer += 1;
@@ -312,7 +298,7 @@ impl Backend {
                         label: Some("iced_wgpu render pass"),
                         color_attachments: &[Some(
                             wgpu::RenderPassColorAttachment {
-                                view: target,
+                                view: frame,
                                 resolve_target: None,
                                 ops: wgpu::Operations {
                                     load: wgpu::LoadOp::Load,
@@ -359,7 +345,7 @@ impl Backend {
 
                     pipeline.primitive.render(
                         &self.pipeline_storage,
-                        target,
+                        frame,
                         target_size,
                         viewport,
                         encoder,
@@ -371,7 +357,7 @@ impl Backend {
                         label: Some("iced_wgpu render pass"),
                         color_attachments: &[Some(
                             wgpu::RenderPassColorAttachment {
-                                view: target,
+                                view: frame,
                                 resolve_target: None,
                                 ops: wgpu::Operations {
                                     load: wgpu::LoadOp::Load,

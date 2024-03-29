@@ -1,24 +1,44 @@
+//! Choose antialiasing strategies.
+
 /// An antialiasing strategy.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum Antialiasing {
-    /// Multisample AA with 2 samples
-    MSAAx2,
-    /// Multisample AA with 4 samples
-    MSAAx4,
-    /// Multisample AA with 8 samples
-    MSAAx8,
-    /// Multisample AA with 16 samples
-    MSAAx16,
+    /// No antialiasing.
+    ///
+    /// This is the default.
+    #[default]
+    Disabled,
+    /// Automatic detection of the best antialiasing strategy.
+    ///
+    /// Backends will choose an antialiasing strategy based on
+    /// the pixel density of the target display; potentially
+    /// disabling antialiasing altogether if deemed unnecessary.
+    Auto,
+    /// Multisample antialiasing.
+    MSAA(MSAA),
 }
 
-impl Antialiasing {
-    /// Returns the amount of samples of the [`Antialiasing`].
+/// A multisample antialiasing strategy.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MSAA {
+    /// 2 samples
+    X2,
+    /// 4 samples
+    X4,
+    /// 8 samples
+    X8,
+    /// 16 samples
+    X16,
+}
+
+impl MSAA {
+    /// Returns the amount of samples of the [`MSAA`] strategy.
     pub fn sample_count(self) -> u32 {
         match self {
-            Antialiasing::MSAAx2 => 2,
-            Antialiasing::MSAAx4 => 4,
-            Antialiasing::MSAAx8 => 8,
-            Antialiasing::MSAAx16 => 16,
+            Self::X2 => 2,
+            Self::X4 => 4,
+            Self::X8 => 8,
+            Self::X16 => 16,
         }
     }
 }

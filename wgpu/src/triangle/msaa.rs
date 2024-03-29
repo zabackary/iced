@@ -1,7 +1,8 @@
-use crate::graphics;
+use crate::graphics::antialiasing;
 
 #[derive(Debug)]
 pub struct Blit {
+    strategy: antialiasing::MSAA,
     format: wgpu::TextureFormat,
     pipeline: wgpu::RenderPipeline,
     constants: wgpu::BindGroup,
@@ -14,7 +15,7 @@ impl Blit {
     pub fn new(
         device: &wgpu::Device,
         format: wgpu::TextureFormat,
-        antialiasing: graphics::Antialiasing,
+        strategy: antialiasing::MSAA,
     ) -> Blit {
         let sampler =
             device.create_sampler(&wgpu::SamplerDescriptor::default());
@@ -109,13 +110,18 @@ impl Blit {
             });
 
         Blit {
+            strategy,
             format,
             pipeline,
             constants: constant_bind_group,
             texture_layout,
-            sample_count: antialiasing.sample_count(),
+            sample_count: strategy.sample_count(),
             targets: None,
         }
+    }
+
+    pub fn strategy(&self) -> antialiasing::MSAA {
+        self.strategy
     }
 
     pub fn targets(

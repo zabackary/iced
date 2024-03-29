@@ -4,8 +4,8 @@ mod scene;
 use controls::Controls;
 use scene::Scene;
 
-use iced_wgpu::graphics::Viewport;
-use iced_wgpu::{wgpu, Backend, Renderer, Settings};
+use iced_wgpu::graphics::{Antialiasing, Target, Viewport};
+use iced_wgpu::{wgpu, Backend, Renderer};
 use iced_winit::conversion;
 use iced_winit::core::mouse;
 use iced_winit::core::renderer;
@@ -63,10 +63,14 @@ pub fn main() -> Result<(), Box<dyn std::error::Error>> {
     let window = Arc::new(window);
 
     let physical_size = window.inner_size();
-    let mut viewport = Viewport::with_physical_size(
-        Size::new(physical_size.width, physical_size.height),
-        window.scale_factor(),
-    );
+    let mut target = Target {
+        scale_factor: window.scale_factor(),
+        viewport: Viewport::with_physical_size(
+            Size::new(physical_size.width, physical_size.height),
+            window.scale_factor(),
+        ),
+    };
+
     let mut cursor_position = None;
     let mut modifiers = ModifiersState::default();
     let mut clipboard = Clipboard::connect(&window);
@@ -156,14 +160,14 @@ pub fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Initialize iced
     let mut debug = Debug::new();
     let mut renderer = Renderer::new(
-        Backend::new(&adapter, &device, &queue, Settings::default(), format),
+        Backend::new(&adapter, &device, &queue, format),
         Font::default(),
         Pixels(16.0),
     );
 
     let mut state = program::State::new(
         controls,
-        viewport.logical_size(),
+        target.viewport.logical_size(),
         &mut renderer,
         &mut debug,
     );
@@ -181,10 +185,13 @@ pub fn main() -> Result<(), Box<dyn std::error::Error>> {
                 if resized {
                     let size = window.inner_size();
 
-                    viewport = Viewport::with_physical_size(
-                        Size::new(size.width, size.height),
-                        window.scale_factor(),
-                    );
+                    target = Target {
+                        scale_factor: window.scale_factor(),
+                        viewport: Viewport::with_physical_size(
+                            Size::new(size.width, size.height),
+                            window.scale_factor(),
+                        ),
+                    };
 
                     surface.configure(
                         &device,
@@ -236,8 +243,9 @@ pub fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 None,
                                 frame.texture.format(),
                                 &view,
+                                Antialiasing::Disabled,
+                                &target,
                                 primitive,
-                                &viewport,
                                 &debug.overlay(),
                             );
                         });
@@ -301,10 +309,13 @@ pub fn main() -> Result<(), Box<dyn std::error::Error>> {
         if !state.is_queue_empty() {
             // We update iced
             let _ = state.update(
-                viewport.logical_size(),
+                target.viewport.logical_size(),
                 cursor_position
                     .map(|p| {
-                        conversion::cursor_position(p, viewport.scale_factor())
+                        conversion::cursor_position(
+                            p,
+                            target.viewport.scale_factor(),
+                        )
                     })
                     .map(mouse::Cursor::Available)
                     .unwrap_or(mouse::Cursor::Unavailable),

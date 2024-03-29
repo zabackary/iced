@@ -3,15 +3,15 @@ use iced::mouse;
 use iced::widget::canvas::{stroke, Cache, Geometry, LineCap, Path, Stroke};
 use iced::widget::{canvas, container};
 use iced::{
-    Degrees, Element, Font, Length, Point, Rectangle, Renderer, Subscription,
-    Theme, Vector,
+    Antialiasing, Degrees, Element, Font, Length, Point, Rectangle, Renderer,
+    Subscription, Theme, Vector,
 };
 
 pub fn main() -> iced::Result {
     iced::program("Clock - Iced", Clock::update, Clock::view)
         .subscription(Clock::subscription)
         .theme(Clock::theme)
-        .antialiasing(true)
+        .antialiasing(Antialiasing::Auto)
         .run()
 }
 

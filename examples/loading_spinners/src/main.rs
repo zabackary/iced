@@ -1,5 +1,5 @@
 use iced::widget::{column, container, row, slider, text};
-use iced::{Element, Length};
+use iced::{Antialiasing, Element, Length};
 
 use std::time::Duration;
 
@@ -16,7 +16,7 @@ pub fn main() -> iced::Result {
         LoadingSpinners::update,
         LoadingSpinners::view,
     )
-    .antialiasing(true)
+    .antialiasing(Antialiasing::Auto)
     .run()
 }
 

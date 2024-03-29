@@ -1,10 +1,10 @@
 //! This example showcases an interactive `Canvas` for drawing Bézier curves.
 use iced::widget::{button, column, text};
-use iced::{Alignment, Element, Length};
+use iced::{Alignment, Antialiasing, Element, Length};
 
 pub fn main() -> iced::Result {
     iced::program("Bezier Tool - Iced", Example::update, Example::view)
-        .antialiasing(true)
+        .antialiasing(Antialiasing::Auto)
         .run()
 }
 

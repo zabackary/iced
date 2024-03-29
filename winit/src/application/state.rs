@@ -2,11 +2,10 @@ use crate::application;
 use crate::conversion;
 use crate::core::mouse;
 use crate::core::{Color, Size};
-use crate::graphics::Viewport;
+use crate::graphics::{Target, Viewport};
 use crate::runtime::Debug;
 use crate::Application;
 
-use std::marker::PhantomData;
 use winit::event::{Touch, WindowEvent};
 use winit::window::Window;
 
@@ -18,13 +17,12 @@ where
 {
     title: String,
     scale_factor: f64,
-    viewport: Viewport,
+    target: Target,
     viewport_version: usize,
     cursor_position: Option<winit::dpi::PhysicalPosition<f64>>,
     modifiers: winit::keyboard::ModifiersState,
     theme: A::Theme,
     appearance: application::Appearance,
-    application: PhantomData<A>,
 }
 
 impl<A: Application> State<A>
@@ -38,31 +36,37 @@ where
         let theme = application.theme();
         let appearance = application.style(&theme);
 
+        let window_scale_factor = window.scale_factor();
+
         let viewport = {
             let physical_size = window.inner_size();
 
             Viewport::with_physical_size(
                 Size::new(physical_size.width, physical_size.height),
-                window.scale_factor() * scale_factor,
+                window_scale_factor * scale_factor,
             )
+        };
+
+        let target = Target {
+            scale_factor: window_scale_factor,
+            viewport,
         };
 
         Self {
             title,
             scale_factor,
-            viewport,
+            target,
             viewport_version: 0,
             cursor_position: None,
             modifiers: winit::keyboard::ModifiersState::default(),
             theme,
             appearance,
-            application: PhantomData,
         }
     }
 
-    /// Returns the current [`Viewport`] of the [`State`].
-    pub fn viewport(&self) -> &Viewport {
-        &self.viewport
+    /// Returns the current [`Target`] of the [`State`] with its [`Viewport`].
+    pub fn target(&self) -> &Target {
+        &self.target
     }
 
     /// Returns the version of the [`Viewport`] of the [`State`].
@@ -74,17 +78,17 @@ where
 
     /// Returns the physical [`Size`] of the [`Viewport`] of the [`State`].
     pub fn physical_size(&self) -> Size<u32> {
-        self.viewport.physical_size()
+        self.target.viewport.physical_size()
     }
 
     /// Returns the logical [`Size`] of the [`Viewport`] of the [`State`].
     pub fn logical_size(&self) -> Size<f32> {
-        self.viewport.logical_size()
+        self.target.viewport.logical_size()
     }
 
     /// Returns the current scale factor of the [`Viewport`] of the [`State`].
     pub fn scale_factor(&self) -> f64 {
-        self.viewport.scale_factor()
+        self.target.viewport.scale_factor()
     }
 
     /// Returns the current cursor position of the [`State`].
@@ -93,7 +97,7 @@ where
             .map(|cursor_position| {
                 conversion::cursor_position(
                     cursor_position,
-                    self.viewport.scale_factor(),
+                    self.target.viewport.scale_factor(),
                 )
             })
             .map(mouse::Cursor::Available)
@@ -131,11 +135,15 @@ where
         match event {
             WindowEvent::Resized(new_size) => {
                 let size = Size::new(new_size.width, new_size.height);
+                let new_scale_factor = window.scale_factor();
 
-                self.viewport = Viewport::with_physical_size(
-                    size,
-                    window.scale_factor() * self.scale_factor,
-                );
+                self.target = Target {
+                    scale_factor: new_scale_factor,
+                    viewport: Viewport::with_physical_size(
+                        size,
+                        new_scale_factor * self.scale_factor,
+                    ),
+                };
 
                 self.viewport_version = self.viewport_version.wrapping_add(1);
             }
@@ -143,12 +151,15 @@ where
                 scale_factor: new_scale_factor,
                 ..
             } => {
-                let size = self.viewport.physical_size();
+                let size = self.target.viewport.physical_size();
 
-                self.viewport = Viewport::with_physical_size(
-                    size,
-                    new_scale_factor * self.scale_factor,
-                );
+                self.target = Target {
+                    scale_factor: *new_scale_factor,
+                    viewport: Viewport::with_physical_size(
+                        size,
+                        new_scale_factor * self.scale_factor,
+                    ),
+                };
 
                 self.viewport_version = self.viewport_version.wrapping_add(1);
             }
@@ -199,15 +210,15 @@ where
         // Update scale factor and size
         let new_scale_factor = application.scale_factor();
         let new_size = window.inner_size();
-        let current_size = self.viewport.physical_size();
+        let current_size = self.target.viewport.physical_size();
 
         if self.scale_factor != new_scale_factor
             || (current_size.width, current_size.height)
                 != (new_size.width, new_size.height)
         {
-            self.viewport = Viewport::with_physical_size(
+            self.target.viewport = Viewport::with_physical_size(
                 Size::new(new_size.width, new_size.height),
-                window.scale_factor() * new_scale_factor,
+                self.target.scale_factor * new_scale_factor,
             );
             self.viewport_version = self.viewport_version.wrapping_add(1);
 

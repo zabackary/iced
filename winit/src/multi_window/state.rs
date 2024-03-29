@@ -1,7 +1,7 @@
 use crate::conversion;
 use crate::core::{mouse, window};
 use crate::core::{Color, Size};
-use crate::graphics::Viewport;
+use crate::graphics::{Target, Viewport};
 use crate::multi_window::{self, Application};
 use std::fmt::{Debug, Formatter};
 
@@ -15,28 +15,12 @@ where
 {
     title: String,
     scale_factor: f64,
-    viewport: Viewport,
+    target: Target,
     viewport_version: u64,
     cursor_position: Option<winit::dpi::PhysicalPosition<f64>>,
     modifiers: winit::keyboard::ModifiersState,
     theme: A::Theme,
     appearance: multi_window::Appearance,
-}
-
-impl<A: Application> Debug for State<A>
-where
-    A::Theme: multi_window::DefaultStyle,
-{
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("multi_window::State")
-            .field("title", &self.title)
-            .field("scale_factor", &self.scale_factor)
-            .field("viewport", &self.viewport)
-            .field("viewport_version", &self.viewport_version)
-            .field("cursor_position", &self.cursor_position)
-            .field("appearance", &self.appearance)
-            .finish()
-    }
 }
 
 impl<A: Application> State<A>
@@ -54,6 +38,8 @@ where
         let theme = application.theme(window_id);
         let appearance = application.style(&theme);
 
+        let window_scale_factor = window.scale_factor();
+
         let viewport = {
             let physical_size = window.inner_size();
 
@@ -63,10 +49,15 @@ where
             )
         };
 
+        let target = Target {
+            scale_factor: window_scale_factor,
+            viewport,
+        };
+
         Self {
             title,
             scale_factor,
-            viewport,
+            target,
             viewport_version: 0,
             cursor_position: None,
             modifiers: winit::keyboard::ModifiersState::default(),
@@ -75,9 +66,9 @@ where
         }
     }
 
-    /// Returns the current [`Viewport`] of the [`State`].
-    pub fn viewport(&self) -> &Viewport {
-        &self.viewport
+    /// Returns the current [`Target`] of the [`State`] with its [`Viewport`].
+    pub fn target(&self) -> &Target {
+        &self.target
     }
 
     /// Returns the version of the [`Viewport`] of the [`State`].
@@ -89,17 +80,17 @@ where
 
     /// Returns the physical [`Size`] of the [`Viewport`] of the [`State`].
     pub fn physical_size(&self) -> Size<u32> {
-        self.viewport.physical_size()
+        self.target.viewport.physical_size()
     }
 
     /// Returns the logical [`Size`] of the [`Viewport`] of the [`State`].
     pub fn logical_size(&self) -> Size<f32> {
-        self.viewport.logical_size()
+        self.target.viewport.logical_size()
     }
 
     /// Returns the current scale factor of the [`Viewport`] of the [`State`].
     pub fn scale_factor(&self) -> f64 {
-        self.viewport.scale_factor()
+        self.target.viewport.scale_factor()
     }
 
     /// Returns the current cursor position of the [`State`].
@@ -108,7 +99,7 @@ where
             .map(|cursor_position| {
                 conversion::cursor_position(
                     cursor_position,
-                    self.viewport.scale_factor(),
+                    self.target.viewport.scale_factor(),
                 )
             })
             .map(mouse::Cursor::Available)
@@ -145,11 +136,15 @@ where
         match event {
             WindowEvent::Resized(new_size) => {
                 let size = Size::new(new_size.width, new_size.height);
+                let new_scale_factor = window.scale_factor();
 
-                self.viewport = Viewport::with_physical_size(
-                    size,
-                    window.scale_factor() * self.scale_factor,
-                );
+                self.target = Target {
+                    scale_factor: new_scale_factor,
+                    viewport: Viewport::with_physical_size(
+                        size,
+                        new_scale_factor * self.scale_factor,
+                    ),
+                };
 
                 self.viewport_version = self.viewport_version.wrapping_add(1);
             }
@@ -157,12 +152,15 @@ where
                 scale_factor: new_scale_factor,
                 ..
             } => {
-                let size = self.viewport.physical_size();
+                let size = self.target.viewport.physical_size();
 
-                self.viewport = Viewport::with_physical_size(
-                    size,
-                    new_scale_factor * self.scale_factor,
-                );
+                self.target = Target {
+                    scale_factor: *new_scale_factor,
+                    viewport: Viewport::with_physical_size(
+                        size,
+                        new_scale_factor * self.scale_factor,
+                    ),
+                };
 
                 self.viewport_version = self.viewport_version.wrapping_add(1);
             }
@@ -217,13 +215,13 @@ where
         // Update scale factor and size
         let new_scale_factor = application.scale_factor(window_id);
         let new_size = window.inner_size();
-        let current_size = self.viewport.physical_size();
+        let current_size = self.target.viewport.physical_size();
 
         if self.scale_factor != new_scale_factor
             || (current_size.width, current_size.height)
                 != (new_size.width, new_size.height)
         {
-            self.viewport = Viewport::with_physical_size(
+            self.target.viewport = Viewport::with_physical_size(
                 Size::new(new_size.width, new_size.height),
                 window.scale_factor() * new_scale_factor,
             );
@@ -235,5 +233,21 @@ where
         // Update theme and appearance
         self.theme = application.theme(window_id);
         self.appearance = application.style(&self.theme);
+    }
+}
+
+impl<A: Application> Debug for State<A>
+where
+    A::Theme: multi_window::DefaultStyle,
+{
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("multi_window::State")
+            .field("title", &self.title)
+            .field("scale_factor", &self.scale_factor)
+            .field("viewport", &self.target)
+            .field("viewport_version", &self.viewport_version)
+            .field("cursor_position", &self.cursor_position)
+            .field("appearance", &self.appearance)
+            .finish()
     }
 }

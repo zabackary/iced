@@ -35,7 +35,9 @@ use crate::core::text;
 use crate::executor::{self, Executor};
 use crate::graphics::compositor;
 use crate::window;
-use crate::{Command, Element, Font, Result, Settings, Size, Subscription};
+use crate::{
+    Antialiasing, Command, Element, Font, Result, Settings, Size, Subscription,
+};
 
 pub use crate::application::{Appearance, DefaultStyle};
 
@@ -261,7 +263,7 @@ impl<P: Definition> Program<P> {
     }
 
     /// Sets the [`Settings::antialiasing`] of the [`Program`].
-    pub fn antialiasing(self, antialiasing: bool) -> Self {
+    pub fn antialiasing(self, antialiasing: Antialiasing) -> Self {
         Self {
             settings: Settings {
                 antialiasing,

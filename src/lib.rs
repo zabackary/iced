@@ -209,6 +209,7 @@ pub use crate::core::{
     Length, Padding, Pixels, Point, Radians, Rectangle, Shadow, Size, Theme,
     Transformation, Vector,
 };
+pub use crate::graphics::antialiasing;
 
 pub mod clipboard {
     //! Access the clipboard.
@@ -316,6 +317,7 @@ pub mod widget {
     mod runtime {}
 }
 
+pub use antialiasing::Antialiasing;
 pub use command::Command;
 pub use error::Error;
 pub use event::Event;

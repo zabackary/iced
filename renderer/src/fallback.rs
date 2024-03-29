@@ -307,7 +307,7 @@ where
         &mut self,
         renderer: &mut Self::Renderer,
         surface: &mut Self::Surface,
-        viewport: &graphics::Viewport,
+        target: &graphics::Target,
         background_color: Color,
         overlay: &[T],
     ) -> Result<(), compositor::SurfaceError> {
@@ -319,7 +319,7 @@ where
             ) => compositor.present(
                 renderer,
                 surface,
-                viewport,
+                target,
                 background_color,
                 overlay,
             ),
@@ -330,7 +330,7 @@ where
             ) => compositor.present(
                 renderer,
                 surface,
-                viewport,
+                target,
                 background_color,
                 overlay,
             ),
@@ -342,7 +342,7 @@ where
         &mut self,
         renderer: &mut Self::Renderer,
         surface: &mut Self::Surface,
-        viewport: &graphics::Viewport,
+        target: &graphics::Target,
         background_color: Color,
         overlay: &[T],
     ) -> Vec<u8> {
@@ -354,7 +354,7 @@ where
             ) => compositor.screenshot(
                 renderer,
                 surface,
-                viewport,
+                target,
                 background_color,
                 overlay,
             ),
@@ -365,7 +365,7 @@ where
             ) => compositor.screenshot(
                 renderer,
                 surface,
-                viewport,
+                target,
                 background_color,
                 overlay,
             ),

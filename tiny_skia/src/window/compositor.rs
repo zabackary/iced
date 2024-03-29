@@ -2,7 +2,7 @@ use crate::core::{Color, Rectangle, Size};
 use crate::graphics::compositor::{self, Information};
 use crate::graphics::damage;
 use crate::graphics::error::{self, Error};
-use crate::graphics::{self, Viewport};
+use crate::graphics::{self, Target, Viewport};
 use crate::{Backend, Primitive, Renderer, Settings};
 
 use std::collections::VecDeque;
@@ -110,7 +110,7 @@ impl crate::graphics::Compositor for Compositor {
         &mut self,
         renderer: &mut Self::Renderer,
         surface: &mut Self::Surface,
-        viewport: &Viewport,
+        target: &Target,
         background_color: Color,
         overlay: &[T],
     ) -> Result<(), compositor::SurfaceError> {
@@ -119,7 +119,7 @@ impl crate::graphics::Compositor for Compositor {
                 backend,
                 surface,
                 primitives,
-                viewport,
+                &target.viewport,
                 background_color,
                 overlay,
             )
@@ -130,7 +130,7 @@ impl crate::graphics::Compositor for Compositor {
         &mut self,
         renderer: &mut Self::Renderer,
         surface: &mut Self::Surface,
-        viewport: &Viewport,
+        target: &Target,
         background_color: Color,
         overlay: &[T],
     ) -> Vec<u8> {
@@ -139,7 +139,7 @@ impl crate::graphics::Compositor for Compositor {
                 surface,
                 backend,
                 primitives,
-                viewport,
+                &target.viewport,
                 background_color,
                 overlay,
             )

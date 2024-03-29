@@ -1,8 +1,9 @@
 //! Draw meshes of triangles.
 mod msaa;
 
-use crate::core::{Size, Transformation};
-use crate::graphics::Antialiasing;
+use crate::core::Transformation;
+use crate::graphics::antialiasing::{self, Antialiasing};
+use crate::graphics::Target;
 use crate::layer::mesh::{self, Mesh};
 use crate::Buffer;
 
@@ -11,11 +12,211 @@ const INITIAL_VERTEX_COUNT: usize = 1_000;
 
 #[derive(Debug)]
 pub struct Pipeline {
-    blit: Option<msaa::Blit>,
-    solid: solid::Pipeline,
-    gradient: gradient::Pipeline,
+    format: wgpu::TextureFormat,
+    format_features: wgpu::TextureFormatFeatures,
     layers: Vec<Layer>,
     prepare_layer: usize,
+    state: State,
+}
+
+#[derive(Debug)]
+#[allow(clippy::large_enum_variant)]
+pub enum State {
+    Unused,
+    Ready {
+        blit: Option<msaa::Blit>,
+        solid: solid::Pipeline,
+        gradient: gradient::Pipeline,
+    },
+}
+
+impl Pipeline {
+    pub fn new(
+        adapter: &wgpu::Adapter,
+        format: wgpu::TextureFormat,
+    ) -> Pipeline {
+        let format_features = adapter.get_texture_format_features(format);
+
+        Pipeline {
+            format,
+            format_features,
+            layers: Vec::new(),
+            prepare_layer: 0,
+            state: State::Unused,
+        }
+    }
+
+    pub fn prepare(
+        &mut self,
+        device: &wgpu::Device,
+        encoder: &mut wgpu::CommandEncoder,
+        belt: &mut wgpu::util::StagingBelt,
+        antialiasing: Antialiasing,
+        target: &Target,
+        meshes: &[Mesh<'_>],
+    ) {
+        #[cfg(feature = "tracing")]
+        let _ = tracing::info_span!("Wgpu::Triangle", "PREPARE").entered();
+
+        if self.prepare_layer == 0 {
+            self.compile(device, antialiasing, target);
+        }
+
+        let State::Ready {
+            solid, gradient, ..
+        } = &mut self.state
+        else {
+            return;
+        };
+
+        let transformation = target.viewport.scaled_projection();
+
+        if self.layers.len() <= self.prepare_layer {
+            self.layers.push(Layer::new(device, solid, gradient));
+        }
+
+        let layer = &mut self.layers[self.prepare_layer];
+        layer.prepare(
+            device,
+            encoder,
+            belt,
+            solid,
+            gradient,
+            meshes,
+            transformation,
+        );
+
+        self.prepare_layer += 1;
+    }
+
+    pub fn render(
+        &mut self,
+        device: &wgpu::Device,
+        encoder: &mut wgpu::CommandEncoder,
+        frame: &wgpu::TextureView,
+        target: &Target,
+        layer: usize,
+        meshes: &[Mesh<'_>],
+    ) {
+        #[cfg(feature = "tracing")]
+        let _ = tracing::info_span!("Wgpu::Triangle", "DRAW").entered();
+
+        let State::Ready {
+            blit,
+            solid,
+            gradient,
+        } = &mut self.state
+        else {
+            return;
+        };
+
+        let target_size = target.viewport.physical_size();
+
+        {
+            let (attachment, resolve_target, load) = if let Some(blit) = blit {
+                let (attachment, resolve_target) =
+                    blit.targets(device, target_size.width, target_size.height);
+
+                (
+                    attachment,
+                    Some(resolve_target),
+                    wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
+                )
+            } else {
+                (frame, None, wgpu::LoadOp::Load)
+            };
+
+            let mut render_pass =
+                encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                    label: Some("iced_wgpu.triangle.render_pass"),
+                    color_attachments: &[Some(
+                        wgpu::RenderPassColorAttachment {
+                            view: attachment,
+                            resolve_target,
+                            ops: wgpu::Operations {
+                                load,
+                                store: wgpu::StoreOp::Store,
+                            },
+                        },
+                    )],
+                    depth_stencil_attachment: None,
+                    timestamp_writes: None,
+                    occlusion_query_set: None,
+                });
+
+            let layer = &mut self.layers[layer];
+
+            layer.render(
+                solid,
+                gradient,
+                meshes,
+                target.viewport.scale_factor() as f32,
+                &mut render_pass,
+            );
+        }
+
+        if let Some(blit) = blit {
+            blit.draw(encoder, frame);
+        }
+    }
+
+    pub fn end_frame(&mut self) {
+        self.prepare_layer = 0;
+    }
+
+    fn compile(
+        &mut self,
+        device: &wgpu::Device,
+        antialiasing: Antialiasing,
+        target: &Target,
+    ) {
+        let msaa = match antialiasing {
+            Antialiasing::Disabled => None,
+            Antialiasing::MSAA(msaa) => Some(msaa),
+            Antialiasing::Auto => {
+                if target.scale_factor > 2.0 {
+                    None
+                } else if cfg!(target_os = "macos")
+                    && target.scale_factor >= 1.5
+                {
+                    Some(antialiasing::MSAA::X2)
+                } else {
+                    Some(antialiasing::MSAA::X4)
+                }
+            }
+        }
+        .map(|msaa| {
+            if self
+                .format_features
+                .flags
+                .sample_count_supported(msaa.sample_count())
+            {
+                msaa
+            } else {
+                antialiasing::MSAA::X4
+            }
+        });
+
+        match self.state {
+            State::Ready { ref blit, .. }
+                if blit.as_ref().map(msaa::Blit::strategy) == msaa => {}
+            _ => {
+                self.state = State::Ready {
+                    blit: msaa
+                        .map(|msaa| msaa::Blit::new(device, self.format, msaa)),
+                    solid: solid::Pipeline::new(device, self.format, msaa),
+                    gradient: gradient::Pipeline::new(
+                        device,
+                        self.format,
+                        msaa,
+                    ),
+                };
+
+                self.layers.clear();
+                self.prepare_layer = 0;
+            }
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -234,119 +435,6 @@ impl Layer {
     }
 }
 
-impl Pipeline {
-    pub fn new(
-        device: &wgpu::Device,
-        format: wgpu::TextureFormat,
-        antialiasing: Option<Antialiasing>,
-    ) -> Pipeline {
-        Pipeline {
-            blit: antialiasing.map(|a| msaa::Blit::new(device, format, a)),
-            solid: solid::Pipeline::new(device, format, antialiasing),
-            gradient: gradient::Pipeline::new(device, format, antialiasing),
-            layers: Vec::new(),
-            prepare_layer: 0,
-        }
-    }
-
-    pub fn prepare(
-        &mut self,
-        device: &wgpu::Device,
-        encoder: &mut wgpu::CommandEncoder,
-        belt: &mut wgpu::util::StagingBelt,
-        meshes: &[Mesh<'_>],
-        transformation: Transformation,
-    ) {
-        #[cfg(feature = "tracing")]
-        let _ = tracing::info_span!("Wgpu::Triangle", "PREPARE").entered();
-
-        if self.layers.len() <= self.prepare_layer {
-            self.layers
-                .push(Layer::new(device, &self.solid, &self.gradient));
-        }
-
-        let layer = &mut self.layers[self.prepare_layer];
-        layer.prepare(
-            device,
-            encoder,
-            belt,
-            &self.solid,
-            &self.gradient,
-            meshes,
-            transformation,
-        );
-
-        self.prepare_layer += 1;
-    }
-
-    pub fn render(
-        &mut self,
-        device: &wgpu::Device,
-        encoder: &mut wgpu::CommandEncoder,
-        target: &wgpu::TextureView,
-        layer: usize,
-        target_size: Size<u32>,
-        meshes: &[Mesh<'_>],
-        scale_factor: f32,
-    ) {
-        #[cfg(feature = "tracing")]
-        let _ = tracing::info_span!("Wgpu::Triangle", "DRAW").entered();
-
-        {
-            let (attachment, resolve_target, load) = if let Some(blit) =
-                &mut self.blit
-            {
-                let (attachment, resolve_target) =
-                    blit.targets(device, target_size.width, target_size.height);
-
-                (
-                    attachment,
-                    Some(resolve_target),
-                    wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
-                )
-            } else {
-                (target, None, wgpu::LoadOp::Load)
-            };
-
-            let mut render_pass =
-                encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                    label: Some("iced_wgpu.triangle.render_pass"),
-                    color_attachments: &[Some(
-                        wgpu::RenderPassColorAttachment {
-                            view: attachment,
-                            resolve_target,
-                            ops: wgpu::Operations {
-                                load,
-                                store: wgpu::StoreOp::Store,
-                            },
-                        },
-                    )],
-                    depth_stencil_attachment: None,
-                    timestamp_writes: None,
-                    occlusion_query_set: None,
-                });
-
-            let layer = &mut self.layers[layer];
-
-            layer.render(
-                &self.solid,
-                &self.gradient,
-                meshes,
-                scale_factor,
-                &mut render_pass,
-            );
-        }
-
-        if let Some(blit) = &mut self.blit {
-            blit.draw(encoder, target);
-        }
-    }
-
-    pub fn end_frame(&mut self) {
-        self.prepare_layer = 0;
-    }
-}
-
 fn fragment_target(
     texture_format: wgpu::TextureFormat,
 ) -> wgpu::ColorTargetState {
@@ -366,10 +454,10 @@ fn primitive_state() -> wgpu::PrimitiveState {
 }
 
 fn multisample_state(
-    antialiasing: Option<Antialiasing>,
+    msaa: Option<antialiasing::MSAA>,
 ) -> wgpu::MultisampleState {
     wgpu::MultisampleState {
-        count: antialiasing.map(Antialiasing::sample_count).unwrap_or(1),
+        count: msaa.map(antialiasing::MSAA::sample_count).unwrap_or(1),
         mask: !0,
         alpha_to_coverage_enabled: false,
     }
@@ -413,8 +501,8 @@ impl Uniforms {
 }
 
 mod solid {
+    use crate::graphics::antialiasing;
     use crate::graphics::mesh;
-    use crate::graphics::Antialiasing;
     use crate::triangle;
     use crate::Buffer;
 
@@ -486,7 +574,7 @@ mod solid {
         pub fn new(
             device: &wgpu::Device,
             format: wgpu::TextureFormat,
-            antialiasing: Option<Antialiasing>,
+            msaa: Option<antialiasing::MSAA>,
         ) -> Self {
             let constants_layout = device.create_bind_group_layout(
                 &wgpu::BindGroupLayoutDescriptor {
@@ -545,7 +633,7 @@ mod solid {
                         }),
                         primitive: triangle::primitive_state(),
                         depth_stencil: None,
-                        multisample: triangle::multisample_state(antialiasing),
+                        multisample: triangle::multisample_state(msaa),
                         multiview: None,
                     },
                 );
@@ -559,9 +647,9 @@ mod solid {
 }
 
 mod gradient {
+    use crate::graphics::antialiasing;
     use crate::graphics::color;
     use crate::graphics::mesh;
-    use crate::graphics::Antialiasing;
     use crate::triangle;
     use crate::Buffer;
 
@@ -633,7 +721,7 @@ mod gradient {
         pub fn new(
             device: &wgpu::Device,
             format: wgpu::TextureFormat,
-            antialiasing: Option<Antialiasing>,
+            antialiasing: Option<antialiasing::MSAA>,
         ) -> Self {
             let constants_layout = device.create_bind_group_layout(
                 &wgpu::BindGroupLayoutDescriptor {

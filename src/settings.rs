@@ -1,6 +1,6 @@
 //! Configure your application.
 use crate::window;
-use crate::{Font, Pixels};
+use crate::{Antialiasing, Font, Pixels};
 
 use std::borrow::Cow;
 
@@ -38,16 +38,15 @@ pub struct Settings<Flags = ()> {
     /// The default value is `16.0`.
     pub default_text_size: Pixels,
 
-    /// If set to true, the renderer will try to perform antialiasing for some
-    /// primitives.
+    /// The antialiasing strategy used for some primitives.
     ///
     /// Enabling it can produce a smoother result in some widgets, like the
     /// [`Canvas`], at a performance cost.
     ///
-    /// By default, it is disabled.
+    /// By default, it is [`Antialiasing::Disabled`].
     ///
     /// [`Canvas`]: crate::widget::Canvas
-    pub antialiasing: bool,
+    pub antialiasing: Antialiasing,
 }
 
 impl<Flags> Settings<Flags> {
@@ -81,7 +80,7 @@ where
             fonts: Vec::new(),
             default_font: Font::default(),
             default_text_size: Pixels(16.0),
-            antialiasing: false,
+            antialiasing: Antialiasing::default(),
         }
     }
 }

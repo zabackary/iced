@@ -16,12 +16,13 @@
     rustdoc::broken_intra_doc_links
 )]
 #![cfg_attr(docsrs, feature(doc_auto_cfg))]
-mod antialiasing;
 mod cached;
 mod primitive;
 mod settings;
+mod target;
 mod viewport;
 
+pub mod antialiasing;
 pub mod backend;
 pub mod color;
 pub mod compositor;
@@ -49,6 +50,7 @@ pub use mesh::Mesh;
 pub use primitive::Primitive;
 pub use renderer::Renderer;
 pub use settings::Settings;
+pub use target::Target;
 pub use viewport::Viewport;
 
 pub use iced_core as core;

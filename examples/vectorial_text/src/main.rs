@@ -3,7 +3,9 @@ use iced::mouse;
 use iced::widget::{
     canvas, checkbox, column, horizontal_space, row, slider, text,
 };
-use iced::{Element, Length, Point, Rectangle, Renderer, Theme, Vector};
+use iced::{
+    Antialiasing, Element, Length, Point, Rectangle, Renderer, Theme, Vector,
+};
 
 pub fn main() -> iced::Result {
     iced::program(
@@ -12,7 +14,7 @@ pub fn main() -> iced::Result {
         VectorialText::view,
     )
     .theme(|_| Theme::Dark)
-    .antialiasing(true)
+    .antialiasing(Antialiasing::Auto)
     .run()
 }
 

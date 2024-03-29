@@ -3,7 +3,7 @@ use crate::core::{Color, Size};
 use crate::graphics::color;
 use crate::graphics::compositor;
 use crate::graphics::error;
-use crate::graphics::{self, Viewport};
+use crate::graphics::{self, Antialiasing, Target};
 use crate::{Backend, Primitive, Renderer, Settings};
 
 /// A window graphics backend for iced powered by `wgpu`.
@@ -75,11 +75,13 @@ impl Compositor {
 
         let adapter_options = wgpu::RequestAdapterOptions {
             power_preference: wgpu::util::power_preference_from_env()
-                .unwrap_or(if settings.antialiasing.is_none() {
-                    wgpu::PowerPreference::LowPower
-                } else {
-                    wgpu::PowerPreference::HighPerformance
-                }),
+                .unwrap_or(
+                    if settings.antialiasing == Antialiasing::Disabled {
+                        wgpu::PowerPreference::LowPower
+                    } else {
+                        wgpu::PowerPreference::HighPerformance
+                    },
+                ),
             compatible_surface: compatible_surface.as_ref(),
             force_fallback_adapter: false,
         };
@@ -158,7 +160,7 @@ impl Compositor {
                         label: Some(
                             "iced_wgpu::window::compositor device descriptor",
                         ),
-                        required_features: wgpu::Features::empty(),
+                        required_features: wgpu::Features::TEXTURE_ADAPTER_SPECIFIC_FORMAT_FEATURES & adapter.features(),
                         required_limits: required_limits.clone(),
                     },
                     None,
@@ -188,13 +190,7 @@ impl Compositor {
 
     /// Creates a new rendering [`Backend`] for this [`Compositor`].
     pub fn create_backend(&self) -> Backend {
-        Backend::new(
-            &self.adapter,
-            &self.device,
-            &self.queue,
-            self.settings,
-            self.format,
-        )
+        Backend::new(&self.adapter, &self.device, &self.queue, self.format)
     }
 }
 
@@ -212,8 +208,9 @@ pub fn present<T: AsRef<str>>(
     compositor: &mut Compositor,
     backend: &mut Backend,
     surface: &mut wgpu::Surface<'static>,
+    antialiasing: Antialiasing,
+    target: &Target,
     primitives: &[Primitive],
-    viewport: &Viewport,
     background_color: Color,
     overlay: &[T],
 ) -> Result<(), compositor::SurfaceError> {
@@ -236,8 +233,9 @@ pub fn present<T: AsRef<str>>(
                 Some(background_color),
                 frame.texture.format(),
                 view,
+                antialiasing,
+                target,
                 primitives,
-                viewport,
                 overlay,
             );
 
@@ -351,7 +349,7 @@ impl graphics::Compositor for Compositor {
         &mut self,
         renderer: &mut Self::Renderer,
         surface: &mut Self::Surface,
-        viewport: &Viewport,
+        target: &Target,
         background_color: Color,
         overlay: &[T],
     ) -> Result<(), compositor::SurfaceError> {
@@ -360,8 +358,9 @@ impl graphics::Compositor for Compositor {
                 self,
                 backend,
                 surface,
+                self.settings.antialiasing,
+                target,
                 primitives,
-                viewport,
                 background_color,
                 overlay,
             )
@@ -372,7 +371,7 @@ impl graphics::Compositor for Compositor {
         &mut self,
         renderer: &mut Self::Renderer,
         _surface: &mut Self::Surface,
-        viewport: &Viewport,
+        target: &Target,
         background_color: Color,
         overlay: &[T],
     ) -> Vec<u8> {
@@ -380,8 +379,9 @@ impl graphics::Compositor for Compositor {
             screenshot(
                 self,
                 backend,
+                self.settings.antialiasing,
+                target,
                 primitives,
-                viewport,
                 background_color,
                 overlay,
             )
@@ -395,8 +395,9 @@ impl graphics::Compositor for Compositor {
 pub fn screenshot<T: AsRef<str>>(
     compositor: &Compositor,
     backend: &mut Backend,
+    antialiasing: Antialiasing,
+    target: &Target,
     primitives: &[Primitive],
-    viewport: &Viewport,
     background_color: Color,
     overlay: &[T],
 ) -> Vec<u8> {
@@ -406,7 +407,7 @@ pub fn screenshot<T: AsRef<str>>(
         },
     );
 
-    let dimensions = BufferDimensions::new(viewport.physical_size());
+    let dimensions = BufferDimensions::new(target.viewport.physical_size());
 
     let texture_extent = wgpu::Extent3d {
         width: dimensions.width,
@@ -436,8 +437,9 @@ pub fn screenshot<T: AsRef<str>>(
         Some(background_color),
         texture.format(),
         &view,
+        antialiasing,
+        target,
         primitives,
-        viewport,
         overlay,
     );
 

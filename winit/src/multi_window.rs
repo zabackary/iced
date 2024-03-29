@@ -625,7 +625,7 @@ async fn run_instance<A, E, C>(
                         match compositor.present(
                             &mut window.renderer,
                             &mut window.surface,
-                            window.state.viewport(),
+                            window.state.target(),
                             window.state.background_color(),
                             &debug.overlay(),
                         ) {
@@ -1121,7 +1121,7 @@ fn run_command<A, C, E>(
                         let bytes = compositor.screenshot(
                             &mut window.renderer,
                             &mut window.surface,
-                            window.state.viewport(),
+                            window.state.target(),
                             window.state.background_color(),
                             &debug.overlay(),
                         );

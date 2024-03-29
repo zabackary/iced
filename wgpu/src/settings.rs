@@ -25,8 +25,8 @@ pub struct Settings {
 
     /// The antialiasing strategy that will be used for triangle primitives.
     ///
-    /// By default, it is `None`.
-    pub antialiasing: Option<Antialiasing>,
+    /// By default, it is [`Antialiasing::Disabled`].
+    pub antialiasing: Antialiasing,
 }
 
 impl Default for Settings {
@@ -36,7 +36,7 @@ impl Default for Settings {
             internal_backend: wgpu::Backends::all(),
             default_font: Font::default(),
             default_text_size: Pixels(16.0),
-            antialiasing: None,
+            antialiasing: Antialiasing::default(),
         }
     }
 }
