@@ -30,7 +30,7 @@ struct Editor {
 
 #[derive(Debug, Clone)]
 enum Message {
-    ActionPerformed(text_editor::Action),
+    ContentChanged,
     ThemeSelected(highlighter::Theme),
     NewFile,
     OpenFile,
@@ -61,10 +61,8 @@ impl Editor {
 
     fn update(&mut self, message: Message) -> Task<Message> {
         match message {
-            Message::ActionPerformed(action) => {
-                self.is_dirty = self.is_dirty || action.is_edit();
-
-                self.content.perform(action);
+            Message::ContentChanged => {
+                self.is_dirty = true;
 
                 Task::none()
             }
@@ -185,7 +183,7 @@ impl Editor {
             controls,
             text_editor(&self.content)
                 .height(Fill)
-                .on_action(Message::ActionPerformed)
+                .on_change(Message::ContentChanged)
                 .highlight::<Highlighter>(
                     highlighter::Settings {
                         theme: self.theme,

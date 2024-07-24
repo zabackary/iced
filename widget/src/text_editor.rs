@@ -29,7 +29,7 @@ pub use text::editor::{Action, Edit, Motion};
 pub struct TextEditor<
     'a,
     Highlighter,
-    Message,
+    Message: Clone + 'a,
     Theme = crate::Theme,
     Renderer = crate::Renderer,
 > where
@@ -46,7 +46,7 @@ pub struct TextEditor<
     height: Length,
     padding: Padding,
     class: Theme::Class<'a>,
-    on_edit: Option<Box<dyn Fn(Action) -> Message + 'a>>,
+    on_edit: Option<Message>,
     highlighter_settings: Highlighter::Settings,
     highlighter_format: fn(
         &Highlighter::Highlight,
@@ -57,6 +57,7 @@ pub struct TextEditor<
 impl<'a, Message, Theme, Renderer>
     TextEditor<'a, highlighter::PlainText, Message, Theme, Renderer>
 where
+    Message: Clone + 'a,
     Theme: Catalog,
     Renderer: text::Renderer,
 {
@@ -84,6 +85,7 @@ where
 impl<'a, Highlighter, Message, Theme, Renderer>
     TextEditor<'a, Highlighter, Message, Theme, Renderer>
 where
+    Message: Clone + 'a,
     Highlighter: text::Highlighter,
     Theme: Catalog,
     Renderer: text::Renderer,
@@ -103,15 +105,12 @@ where
         self
     }
 
-    /// Sets the message that should be produced when some action is performed in
-    /// the [`TextEditor`].
+    /// Sets the message that should be produced when the contents of
+    /// the [`TextEditor`] change.
     ///
     /// If this method is not called, the [`TextEditor`] will be disabled.
-    pub fn on_action(
-        mut self,
-        on_edit: impl Fn(Action) -> Message + 'a,
-    ) -> Self {
-        self.on_edit = Some(Box::new(on_edit));
+    pub fn on_change(mut self, on_change: Message) -> Self {
+        self.on_edit = Some(on_change);
         self
     }
 
@@ -220,8 +219,8 @@ where
     }
 
     /// Performs an [`Action`] on the [`Content`].
-    pub fn perform(&mut self, action: Action) {
-        let internal = self.0.get_mut();
+    pub fn perform(&self, action: Action) {
+        let mut internal = self.0.borrow_mut();
 
         internal.editor.perform(action);
         internal.is_dirty = true;
@@ -371,6 +370,7 @@ impl<Highlighter: text::Highlighter> operation::Focusable
 impl<'a, Highlighter, Message, Theme, Renderer> Widget<Message, Theme, Renderer>
     for TextEditor<'a, Highlighter, Message, Theme, Renderer>
 where
+    Message: Clone + 'a,
     Highlighter: text::Highlighter,
     Theme: Catalog,
     Renderer: text::Renderer,
@@ -493,7 +493,7 @@ where
                 state.last_click = Some(click);
                 state.drag_click = Some(click.kind());
 
-                shell.publish(on_edit(action));
+                self.content.perform(action);
             }
             Update::Scroll(lines) => {
                 let bounds = self.content.0.borrow().editor.bounds();
@@ -505,9 +505,9 @@ where
                 let lines = lines + state.partial_scroll;
                 state.partial_scroll = lines.fract();
 
-                shell.publish(on_edit(Action::Scroll {
+                self.content.perform(Action::Scroll {
                     lines: lines as i32,
-                }));
+                });
             }
             Update::Unfocus => {
                 state.is_focused = false;
@@ -517,7 +517,11 @@ where
                 state.drag_click = None;
             }
             Update::Action(action) => {
-                shell.publish(on_edit(action));
+                if action.is_edit() {
+                    shell.publish(on_edit.clone());
+                }
+
+                self.content.perform(action);
             }
             Update::Copy => {
                 if let Some(selection) = self.content.selection() {
@@ -527,16 +531,15 @@ where
             Update::Cut => {
                 if let Some(selection) = self.content.selection() {
                     clipboard.write(clipboard::Kind::Standard, selection);
-                    shell.publish(on_edit(Action::Edit(Edit::Delete)));
+                    self.content.perform(Action::Edit(Edit::Delete));
                 }
             }
             Update::Paste => {
                 if let Some(contents) =
                     clipboard.read(clipboard::Kind::Standard)
                 {
-                    shell.publish(on_edit(Action::Edit(Edit::Paste(
-                        Arc::new(contents),
-                    ))));
+                    self.content
+                        .perform(Action::Edit(Edit::Paste(Arc::new(contents))));
                 }
             }
         }
@@ -720,7 +723,7 @@ impl<'a, Highlighter, Message, Theme, Renderer>
     for Element<'a, Message, Theme, Renderer>
 where
     Highlighter: text::Highlighter,
-    Message: 'a,
+    Message: Clone + 'a,
     Theme: Catalog + 'a,
     Renderer: text::Renderer,
 {

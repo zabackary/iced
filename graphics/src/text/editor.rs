@@ -418,6 +418,8 @@ impl editor::Editor for Editor {
             }
         }
 
+        editor.shape_as_needed(font_system.raw(), false);
+
         self.0 = Some(Arc::new(internal));
     }
 

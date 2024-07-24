@@ -15,7 +15,7 @@ struct Markdown {
 
 #[derive(Debug, Clone)]
 enum Message {
-    Edit(text_editor::Action),
+    ContentChanged,
     LinkClicked(markdown::Url),
 }
 
@@ -38,18 +38,10 @@ impl Markdown {
 
     fn update(&mut self, message: Message) {
         match message {
-            Message::Edit(action) => {
-                let is_edit = action.is_edit();
-
-                self.content.perform(action);
-
-                if is_edit {
-                    self.items = markdown::parse(
-                        &self.content.text(),
-                        self.theme.palette(),
-                    )
-                    .collect();
-                }
+            Message::ContentChanged => {
+                self.items =
+                    markdown::parse(&self.content.text(), self.theme.palette())
+                        .collect();
             }
             Message::LinkClicked(link) => {
                 let _ = open::that_in_background(link.to_string());
@@ -60,7 +52,7 @@ impl Markdown {
     fn view(&self) -> Element<Message> {
         let editor = text_editor(&self.content)
             .placeholder("Type your Markdown here...")
-            .on_action(Message::Edit)
+            .on_change(Message::ContentChanged)
             .height(Fill)
             .padding(10)
             .font(Font::MONOSPACE);
